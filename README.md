@@ -1,6 +1,7 @@
 # winona
 An ncurses-based command-line music player with no external dependencies! (´｡• ω •｡`)
 
+<img width="25%" src="images/winona.png" alt="logo">
 ![logo](images/winona.png)
 ![screenshot](images/winona.gif)
 
