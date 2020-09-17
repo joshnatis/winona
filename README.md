@@ -18,8 +18,11 @@ Basically we need to compile and link all the files in this directory, and also 
 `g++ winona.cpp -lncurses -Ilibraries -Wall -Wextra -o winona`.
 However, it seems that on Linux we need to add a couple of extra flags:
 `g++ winona.cpp -lncurses -ldl -pthread -Ilibraries -Wall -Wextra -o winona`.
-
 This weirdness is (TODO) accounted for in the Makefile.
+
+Once you've built the `winona` executable, you can move it to your desired location and remove this directory from your computer.
+
+
 
 ## DEPENDENCIES & COMPATABILITY ʕ •ᴥ• ʔ
 This program supports any environment containing `dirent.h`, `ncurses.h`, and a `c++` compiler. For better or for worse, this excludes Windoze (because `dirent.h` is a library for Unix-like systems). However, the underlying audio libraries from [David Reid](https://github.com/mackron) (awesome guy) support basically any platform.
