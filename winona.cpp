@@ -62,7 +62,7 @@ bool AudioPlayer::await_command()
 	}
 }
 
-//modifies history_, device_, decoder_
+//modifies current_songs_, history_, device_, decoder_
 void AudioPlayer::play_song(int index)
 {
 	//deallocate memory for previous song
@@ -70,13 +70,13 @@ void AudioPlayer::play_song(int index)
 	ma_decoder_uninit(&decoder_);
 
 	//fetch next song. either determined by index, or, if -1, a new song is chosen (based on mode)
-	string title = get_next_song(index);
+	current_song_ = (index != -1) ? index : get_next_song();
 
 	//add the song to history (as long as it isn't being replayed)
 	if(history_.size() == 0 || history_[history_.size() - 1] != current_song_)
 		history_.push_back(current_song_);
 
-	string path = directory_ + "/" + title;
+	string path = directory_ + "/" + songs_[current_song_];
 
 	//call miniaudio library functions to play audio file
 	play_song_boilerplate(path);
@@ -101,29 +101,32 @@ void AudioPlayer::view_songs()
  | |     | | \ \  _| |_    \  // ____ \ | |   | |____ 
  |_|     |_|  \_\|_____|    \//_/    \_\|_|   |______|*/
 
-//modifies current_song_, mode_
-string AudioPlayer::get_next_song(int index)
+//modifies mode_
+int AudioPlayer::get_next_song()
 {
-	if(index != -1) current_song_ = index;
-	else if(mode_ == SHUFFLE) current_song_ = rand() % num_songs_;
-	else if(mode_ == LINEAR) current_song_ = (current_song_ + 1) % num_songs_;
-	else if(mode_ == LOOP) {} //i.e. current_song_ = current_song_
+	if(mode_ == SHUFFLE) return rand() % num_songs_;
+	else if(mode_ == LINEAR) return (current_song_ + 1) % num_songs_;
+	else if(mode_ == LOOP) return current_song_;
 	else if(mode_ == QUEUE)
 	{
 		if(queue_.size() == 0)
 		{
 			mode_ = SHUFFLE;
-			current_song_ = rand() % num_songs_;
+			return rand() % num_songs_;
 		}
 		else
 		{
-			current_song_ = queue_.front();
+			int next = queue_.front();
 			queue_.pop_front();
 			if(queue_.size() == 0) mode_ = SHUFFLE;
+			return next;
 		}
 	}
-
-	return songs_[current_song_];
+	else
+	{
+		die("Unable to determine next song");
+		return -1;
+	}
 }
 
 //modifies songs_ and num_songs_
@@ -148,11 +151,7 @@ void AudioPlayer::load_songs()
 	}
 
 	if(num_songs_ == 0)
-	{
-		endwin();
-		printf("No songs found at %s\n", directory_.c_str());
-		exit(1);
-	}
+		die("No songs found at " + directory_);
 }
 
 //modifies history_, paused_
@@ -183,6 +182,7 @@ void AudioPlayer::handle_command(char option)
 	}
 }
 
+//modifies duration_
 void AudioPlayer::play_song_boilerplate(string &path)
 {
 	ma_result result;
@@ -190,37 +190,33 @@ void AudioPlayer::play_song_boilerplate(string &path)
 
 	result = ma_decoder_init_file((path).c_str(), NULL, &decoder_);
 	if (result != MA_SUCCESS)
-	{
-		printw("[ERROR] Unable to open file (%s)\n", path.c_str());
-		exit(1);
-	}
+		die("Unable to open file " + path);
 
 	deviceConfig = ma_device_config_init(ma_device_type_playback);
-    deviceConfig.playback.format   = decoder_.outputFormat;
-    deviceConfig.playback.channels = decoder_.outputChannels;
-    deviceConfig.sampleRate        = decoder_.outputSampleRate;
-    deviceConfig.dataCallback      = data_callback;
-    deviceConfig.pUserData         = &decoder_;
+	deviceConfig.playback.format   = decoder_.outputFormat;
+	deviceConfig.playback.channels = decoder_.outputChannels;
+	deviceConfig.sampleRate        = decoder_.outputSampleRate;
+	deviceConfig.dataCallback      = data_callback;
+	deviceConfig.pUserData         = &decoder_;
 
-    /* calculate the duration of the current song in seconds */
-    duration_ = ma_decoder_get_length_in_pcm_frames(&decoder_) / (decoder_.outputSampleRate);
-    /* only block getch() for duration of song (ms), after release next song will play */
-    timeout((duration_ + 1) * 1000);
 
 	if (ma_device_init(NULL, &deviceConfig, &device_) != MA_SUCCESS)
 	{
-		printw("Failed to open playback device\n");
 		ma_decoder_uninit(&decoder_);
-		exit(1);
+		die("Failed to open playback device");
 	}
 
 	if (ma_device_start(&device_) != MA_SUCCESS)
 	{
-		printw("Failed to start playback device\n");
 		ma_device_uninit(&device_);
 		ma_decoder_uninit(&decoder_);
-		exit(1);
+		die("Failed to start playback device");
 	}
+
+	/* calculate the duration of the current song in seconds */
+	duration_ = ma_decoder_get_length_in_pcm_frames(&decoder_) / (decoder_.outputSampleRate);
+	/* only block getch() for duration of song (ms), after release next song will play */
+	timeout((duration_ + 1) * 1000);
 }
 
 /*_    _   _____  ______  _____     _____  _   _  _____   _    _  _______ 
@@ -268,7 +264,7 @@ void AudioPlayer::user_pick_song(const string &action)
 void AudioPlayer::user_pick_mode()
 {
 	clear(); display_mp3_player(); display_mode();
-	printw("(s)huffle, (l)oop, (L)inear, (Q)ueue, (q)uit"); refresh();
+	printw("(s)huffle, (l)oop, (L)inear, (Q)ueue, (q)uit\n"); refresh();
 
 	char option = getch();
 	if(option == 's') mode_ = SHUFFLE;
@@ -278,7 +274,7 @@ void AudioPlayer::user_pick_mode()
 	else if(option == 'q') return;
 	else
 	{
-		printw("\nInvalid mode.\n"); refresh();
+		printw("Invalid option. (%c)\n", option); refresh();
 		sleep(1);
 	}
 }
@@ -392,6 +388,13 @@ bool AudioPlayer::isnum(const string &str)
 	for(int i = 0, l = str.length(); i < l; ++i)
 		if(!isdigit(str[i])) return false;
 	return true;
+}
+
+void AudioPlayer::die(string msg, int err)
+{
+	endwin();
+	puts(msg.c_str());
+	exit(err);
 }
 
 /*__  __            _____  _   _ 

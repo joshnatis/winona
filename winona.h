@@ -90,7 +90,7 @@ private:
 	WINDOW *win_;
 
 	void load_songs();
-	string get_next_song(int index);
+	int get_next_song();
 	void handle_command(char option);
 	void play_song_boilerplate(string &path);
 
@@ -107,4 +107,5 @@ private:
 	string get_file_ext(const string &fn);
 	string to_lower(const string &str);
 	bool isnum(const string &str);
+	void die(string msg, int err = 1);
 };
