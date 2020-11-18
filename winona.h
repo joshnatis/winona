@@ -27,6 +27,9 @@
  			in the event loop, which addresses the issue of play_song() not being
  			executed when duration_ is slightly off thus causing the timeout to trigger
  			earlier than the song ends
+* BUG: program crashes with invalid mp3 files (leaving terminal win messed up)
+* BUG: less pager functionality goes awry with special chars in song names
+	(e.g. hello\".mp3), because theyre not escaped
 
  * PERFORMANCE: reduce number of refresh() calls
  	- consider separate windows for acii art and menu
